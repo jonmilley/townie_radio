@@ -7,6 +7,7 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
+    text::{Span, Spans},
     widgets::{Block, Borders, Paragraph},
     Terminal,
 };
@@ -14,32 +15,54 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use rand::{thread_rng, Rng};
+use image::GenericImageView;
 
 // ----------------- Stations -----------------
 struct Station {
     name: &'static str,
     url: &'static str,
+    logo_path: &'static str,
 }
 
 const STATIONS: &[Station] = &[
-    Station { name: "VOCM AM 590", url: "https://stingray.leanstream.co/VOCMAM" },
-    Station { name: "CBC Radio 1 St. John's", url: "https://cbcradiolive.akamaized.net/hls/live/2037435/ES_R1NSN/adaptive_48/chunklist_ao.m3u8" },
-    Station { name: "VOWR 800", url: "https://c21.radioboss.fm/stream/193" },
-    Station { name: "CHMR 93.5 FM", url: "http://192.99.14.49:9005/live128" },
-    Station { name: "CHOZ OZFM", url: "https://ozfm.streamb.live/SB00174?ver=516364"}
+    Station {
+        name: "CBC Radio 1 (St. John's)",
+        url: "https://cbcradiolive.akamaized.net/hls/live/2037435/ES_R1NSN/adaptive_48/chunklist_ao.m3u8",
+        logo_path: "logos/CBC.png",
+    },
+    Station {
+        name: "CHMR 93.5 FM",
+        url: "http://192.99.14.49:9005/live128",
+        logo_path: "logos/CHMR-FM.png",
+    },
+    Station {
+        name: "CHOZ OZFM",
+        url: "https://ozfm.streamb.live/SB00174?ver=516364",
+        logo_path: "logos/CHOZ_OZFM.png",
+    },
+    Station {
+        name: "VOCM AM 590",
+        url: "https://stingray.leanstream.co/VOCMAM",
+        logo_path: "logos/VOCM.png",
+    },
+    Station {
+        name: "VOWR 800",
+        url: "https://c21.radioboss.fm/stream/193",
+        logo_path: "logos/VOWR.png",
+    },
 ];
 
 // ----------------- App State -----------------
 struct AppState {
-    current_station: Option<usize>, // ← no selection initially
+    current_station: Option<usize>,
     status: String,
     spectrum: Vec<u8>,
     spinner_index: usize,
     player: Option<Child>,
-    loading_since: Option<std::time::Instant>,
+    loading_since: Option<Instant>,
 }
 
 impl AppState {
@@ -63,7 +86,7 @@ fn play(app: &mut AppState) {
         let station = &STATIONS[idx];
 
         app.status = "LOADING".to_string();
-        app.loading_since = Some(std::time::Instant::now());
+        app.loading_since = Some(Instant::now());
 
         match Command::new("ffplay")
             .arg("-nodisp")
@@ -103,7 +126,6 @@ fn update_spectrum(app: &mut AppState) {
     }
 
     let mut rng = thread_rng();
-
     for v in &mut app.spectrum {
         if app.status == "ONLINE" {
             let delta: i8 = rng.gen_range(-2..=3);
@@ -112,7 +134,6 @@ fn update_spectrum(app: &mut AppState) {
             *v = v.saturating_sub(1);
         }
     }
-
     app.spinner_index = (app.spinner_index + 1) % 4;
 }
 
@@ -124,68 +145,55 @@ fn draw_ui(
     terminal.draw(|f| {
         let size = f.size();
 
+        // Vertical layout
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
             .constraints(
                 [
-                    Constraint::Length(3),       // Title
-                    Constraint::Length(3),       // Status
-                    Constraint::Percentage(30),  // Spectrum
-                    Constraint::Min(4),          // Stations
+                    Constraint::Length(3),      // Title
+                    Constraint::Length(3),      // Status
+                    Constraint::Percentage(30), // Spectrum
+                    Constraint::Min(6),         // Stations + Logo
                 ]
                 .as_ref(),
             )
             .split(size);
 
-        // -------- Title --------
+        // Title
         let title_text = match app.current_station {
             Some(idx) => format!("{} - Townie Radio", STATIONS[idx].name),
             None => "Townie Radio".to_string(),
         };
-
         let title = Paragraph::new(title_text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(Color::Yellow)),
-            );
-
+            .block(Block::default().borders(Borders::ALL).style(Style::default().fg(Color::Yellow)));
         f.render_widget(title, chunks[0]);
 
-        // -------- Status --------
+        // Status
         let spinner = ["|", "/", "-", "\\"][app.spinner_index];
-
         let status = Paragraph::new(format!("STATUS: {} {}", app.status, spinner))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(Color::Cyan)),
-            );
-
+            .block(Block::default().borders(Borders::ALL).style(Style::default().fg(Color::Cyan)));
         f.render_widget(status, chunks[1]);
 
-        // -------- Spectrum --------
+        // Spectrum
         let spectrum_str: String = app
             .spectrum
             .iter()
             .map(|&v| std::iter::repeat("█").take(v as usize).collect::<String>())
             .collect::<Vec<_>>()
             .join(" ");
-
         let spectrum_widget = Paragraph::new(spectrum_str)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("SPECTRUM")
-                    .style(Style::default().fg(Color::Green)),
-            );
-
+            .block(Block::default().borders(Borders::ALL).title("SPECTRUM").style(Style::default().fg(Color::Green)));
         f.render_widget(spectrum_widget, chunks[2]);
 
-        // -------- Stations --------
-        let mut station_lines = vec![];
+        // Horizontal split for Stations and Logo
+        let bottom_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+            .split(chunks[3]);
 
+        // Stations list
+        let mut station_lines = vec![];
         for (i, s) in STATIONS.iter().enumerate() {
             if Some(i) == app.current_station {
                 station_lines.push(format!("> [{}] {}", i + 1, s.name));
@@ -193,26 +201,42 @@ fn draw_ui(
                 station_lines.push(format!("  [{}] {}", i + 1, s.name));
             }
         }
-
-        station_lines.push("Press 1-4 to switch stations | Q = QUIT".to_string());
+        station_lines.push("Press 1-5 to switch stations | Q = QUIT".to_string());
 
         let stations_paragraph = Paragraph::new(station_lines.join("\n"))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(Color::Magenta)),
-            );
+            .block(Block::default().borders(Borders::ALL).style(Style::default().fg(Color::Magenta)));
+        f.render_widget(stations_paragraph, bottom_chunks[0]);
 
-        f.render_widget(stations_paragraph, chunks[3]);
+        // Station logo
+        if let Some(idx) = app.current_station {
+            if let Ok(img) = image::open(STATIONS[idx].logo_path) {
+                let small = img.resize_exact(8, 8, image::imageops::FilterType::Nearest);
+                let pixel_rows: Vec<Spans> = small
+                    .pixels()
+                    .collect::<Vec<_>>()
+                    .chunks(8)
+                    .map(|row: &[(u32, u32, image::Rgba<u8>)]| {
+                        let spans: Vec<Span> = row
+                            .iter()
+                            .map(|p| {
+                                let rgba = p.2 .0;
+                                Span::styled("█", Style::default().fg(Color::Rgb(rgba[0], rgba[1], rgba[2])))
+                            })
+                            .collect();
+                        Spans::from(spans)
+                    })
+                    .collect();
+                let logo_widget = Paragraph::new(pixel_rows).block(Block::default().borders(Borders::ALL).title("LOGO"));
+                f.render_widget(logo_widget, bottom_chunks[1]);
+            }
+        }
     })?;
-
     Ok(())
 }
 
 // ----------------- Main -----------------
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = std::io::stdout();
-
     enable_raw_mode()?;
     execute!(stdout, EnterAlternateScreen)?;
 
@@ -249,7 +273,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     KeyCode::Char(c) => {
                         if let Some(digit) = c.to_digit(10) {
                             let idx = (digit - 1) as usize;
-
                             if idx < STATIONS.len() {
                                 stop(&mut a);
                                 a.current_station = Some(idx);
@@ -266,6 +289,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
-
     Ok(())
 }
