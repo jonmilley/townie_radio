@@ -4,7 +4,7 @@ A minimal, terminal-based radio streamer for local **St. John's, Newfoundland & 
 
 TownieRadio is a lightweight Rust TUI app that lets you stream local radio directly from your terminal with a retro pixel-art vibe.
 
-No browsers. No ads. Just radio.
+![TownieRadio Screenshot](assets/screenshot.png)
 
 ---
 
