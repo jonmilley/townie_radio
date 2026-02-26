@@ -28,5 +28,10 @@
     "name": "HOT 99.1",
     "url": "https://stingray.leanstream.co/CKIXFM-MP3?args=web_02",
     "logo_path": "logos/HOT991.png"
+  },
+  {
+    "name": "K-Rock 97.5",
+    "url": "https://stingray.leanstream.co/VOCMFM-MP3?args=web_02",
+    "logo_path": "logos/KROCK.png"
   }
 ]

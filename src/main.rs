@@ -181,7 +181,7 @@ fn draw_ui(
                 station_lines.push(format!("  [{}] {}", i + 1, s.name));
             }
         }
-        station_lines.push("1-6 = station | SPACE = stop | Q = quit".to_string());
+        station_lines.push("1-7 = station | SPACE = stop | Q = quit".to_string());
 
         let stations_paragraph = Paragraph::new(station_lines.join("\n"))
             .block(Block::default().borders(Borders::ALL).style(Style::default().fg(Color::Magenta)));
