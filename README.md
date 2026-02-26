@@ -27,7 +27,17 @@ TownieRadio is a lightweight Rust TUI app that lets you stream local radio direc
 - VOCM AM 590
 - VOWR 800
 - HOT 99.1 FM
+- K-Rock 97.5
 
+Stations are defined in `stations.json` at the project root — add, remove, or edit stations without recompiling:
+
+```json
+{
+  "name": "My Station",
+  "url": "https://example.com/stream",
+  "logo_path": "logos/MyStation.png"
+}
+```
 
 ---
 
