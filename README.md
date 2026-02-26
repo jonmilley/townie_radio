@@ -26,6 +26,8 @@ TownieRadio is a lightweight Rust TUI app that lets you stream local radio direc
 - CHOZ OZFM
 - VOCM AM 590
 - VOWR 800
+- HOT 99.1 FM
+
 
 ---
 

@@ -53,6 +53,11 @@ const STATIONS: &[Station] = &[
         url: "https://c21.radioboss.fm/stream/193",
         logo_path: "logos/VOWR.png",
     },
+    Station {
+        name: "HOT 99.1",
+        url: "https://stingray.leanstream.co/CKIXFM-MP3?args=web_02",
+        logo_path: "logos/HOT991.png",
+    },
 ];
 
 // ----------------- App State -----------------
@@ -201,33 +206,52 @@ fn draw_ui(
                 station_lines.push(format!("  [{}] {}", i + 1, s.name));
             }
         }
-        station_lines.push("Press 1-5 to switch stations | Q = QUIT".to_string());
+        station_lines.push("1-6 = station | SPACE = stop | Q = quit".to_string());
 
         let stations_paragraph = Paragraph::new(station_lines.join("\n"))
             .block(Block::default().borders(Borders::ALL).style(Style::default().fg(Color::Magenta)));
         f.render_widget(stations_paragraph, bottom_chunks[0]);
 
-        // Station logo
+        // Station logo — half-block rendering (▀): each char row = 2 pixel rows
         if let Some(idx) = app.current_station {
             if let Ok(img) = image::open(STATIONS[idx].logo_path) {
-                let small = img.resize_exact(8, 8, image::imageops::FilterType::Nearest);
-                let pixel_rows: Vec<Spans> = small
-                    .pixels()
-                    .collect::<Vec<_>>()
-                    .chunks(8)
-                    .map(|row: &[(u32, u32, image::Rgba<u8>)]| {
-                        let spans: Vec<Span> = row
-                            .iter()
-                            .map(|p| {
-                                let rgba = p.2 .0;
-                                Span::styled("█", Style::default().fg(Color::Rgb(rgba[0], rgba[1], rgba[2])))
-                            })
-                            .collect();
-                        Spans::from(spans)
-                    })
-                    .collect();
-                let logo_widget = Paragraph::new(pixel_rows).block(Block::default().borders(Borders::ALL).title("LOGO"));
-                f.render_widget(logo_widget, bottom_chunks[1]);
+                let logo_area = bottom_chunks[1];
+                let inner_w = logo_area.width.saturating_sub(2) as u32;
+                let inner_h = logo_area.height.saturating_sub(2) as u32;
+
+                if inner_w > 0 && inner_h > 0 {
+                    let small = img.resize(inner_w, inner_h * 2, image::imageops::FilterType::Triangle);
+                    let actual_w = small.width();
+                    let actual_h = small.height();
+
+                    let all_pixels: Vec<image::Rgba<u8>> = small.pixels().map(|(_, _, p)| p).collect();
+
+                    let pixel_rows: Vec<Spans> = (0..(actual_h + 1) / 2)
+                        .map(|row| {
+                            let spans: Vec<Span> = (0..actual_w)
+                                .map(|col| {
+                                    let top = all_pixels[(row * 2 * actual_w + col) as usize].0;
+                                    let bot = if row * 2 + 1 < actual_h {
+                                        all_pixels[((row * 2 + 1) * actual_w + col) as usize].0
+                                    } else {
+                                        [0, 0, 0, 255]
+                                    };
+                                    Span::styled(
+                                        "▀",
+                                        Style::default()
+                                            .fg(Color::Rgb(top[0], top[1], top[2]))
+                                            .bg(Color::Rgb(bot[0], bot[1], bot[2])),
+                                    )
+                                })
+                                .collect();
+                            Spans::from(spans)
+                        })
+                        .collect();
+
+                    let logo_widget = Paragraph::new(pixel_rows)
+                        .block(Block::default().borders(Borders::ALL).title("LOGO"));
+                    f.render_widget(logo_widget, logo_area);
+                }
             }
         }
     })?;
@@ -270,8 +294,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         stop(&mut a);
                         break;
                     }
+                    KeyCode::Char(' ') => {
+                        stop(&mut a);
+                        a.current_station = None;
+                    }
                     KeyCode::Char(c) => {
                         if let Some(digit) = c.to_digit(10) {
+                            if digit == 0 {
+                                stop(&mut a);
+                                break;
+                            }
                             let idx = (digit - 1) as usize;
                             if idx < STATIONS.len() {
                                 stop(&mut a);
