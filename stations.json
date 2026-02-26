@@ -33,5 +33,10 @@
     "name": "K-Rock 97.5",
     "url": "https://stingray.leanstream.co/VOCMFM-MP3?args=web_02",
     "logo_path": "logos/KROCK.png"
+  },
+  {
+    "name": "Coast 101.1 FM",
+    "url": "https://coast-broadcasting-limited.streamb.live/SB00357",
+    "logo_path": "logos/COAST1011.png"
   }
 ]
