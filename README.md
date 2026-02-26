@@ -29,7 +29,7 @@ TownieRadio is a lightweight Rust TUI app that lets you stream local radio direc
 - HOT 99.1 FM
 - K-Rock 97.5
 
-Stations are defined in `stations.json` at the project root — add, remove, or edit stations without recompiling:
+Stations and logos are embedded into the binary at compile time. To add a station, drop a PNG into `logos/`, add an entry to `stations.json`, then rebuild:
 
 ```json
 {
@@ -42,8 +42,6 @@ Stations are defined in `stations.json` at the project root — add, remove, or 
 ---
 
 ## 🛠 Requirements
-
-You need:
 
 - Rust (latest stable recommended)
 - `ffplay` (from FFmpeg)
@@ -65,3 +63,13 @@ cd townie_radio
 ```bash
 cargo run
 ```
+
+### Build a standalone binary
+
+All assets (station list and logos) are compiled directly into the binary — no external files needed at runtime.
+
+```bash
+cargo build --release
+```
+
+The self-contained executable will be at `target/release/townieradio`.
