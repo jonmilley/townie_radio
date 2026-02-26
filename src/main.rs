@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use crossterm::{
     event::{poll, read, Event, KeyCode},
     execute,
@@ -21,44 +22,17 @@ use rand::{thread_rng, Rng};
 use image::GenericImageView;
 
 // ----------------- Stations -----------------
+#[derive(Deserialize)]
 struct Station {
-    name: &'static str,
-    url: &'static str,
-    logo_path: &'static str,
+    name: String,
+    url: String,
+    logo_path: String,
 }
 
-const STATIONS: &[Station] = &[
-    Station {
-        name: "CBC Radio 1 (St. John's)",
-        url: "https://cbcradiolive.akamaized.net/hls/live/2037435/ES_R1NSN/adaptive_48/chunklist_ao.m3u8",
-        logo_path: "logos/CBC.png",
-    },
-    Station {
-        name: "CHMR 93.5 FM",
-        url: "http://192.99.14.49:9005/live128",
-        logo_path: "logos/CHMR-FM.png",
-    },
-    Station {
-        name: "CHOZ OZFM",
-        url: "https://ozfm.streamb.live/SB00174?ver=516364",
-        logo_path: "logos/CHOZ_OZFM.png",
-    },
-    Station {
-        name: "VOCM AM 590",
-        url: "https://stingray.leanstream.co/VOCMAM",
-        logo_path: "logos/VOCM.png",
-    },
-    Station {
-        name: "VOWR 800",
-        url: "https://c21.radioboss.fm/stream/193",
-        logo_path: "logos/VOWR.png",
-    },
-    Station {
-        name: "HOT 99.1",
-        url: "https://stingray.leanstream.co/CKIXFM-MP3?args=web_02",
-        logo_path: "logos/HOT991.png",
-    },
-];
+fn load_stations() -> Vec<Station> {
+    let data = std::fs::read_to_string("stations.json").expect("could not read stations.json");
+    serde_json::from_str(&data).expect("invalid stations.json")
+}
 
 // ----------------- App State -----------------
 struct AppState {
@@ -84,11 +58,11 @@ impl AppState {
 }
 
 // ----------------- Audio -----------------
-fn play(app: &mut AppState) {
+fn play(app: &mut AppState, stations: &[Station]) {
     stop(app);
 
     if let Some(idx) = app.current_station {
-        let station = &STATIONS[idx];
+        let station = &stations[idx];
 
         app.status = "LOADING".to_string();
         app.loading_since = Some(Instant::now());
@@ -97,7 +71,7 @@ fn play(app: &mut AppState) {
             .arg("-nodisp")
             .arg("-loglevel")
             .arg("quiet")
-            .arg(station.url)
+            .arg(&station.url)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -145,6 +119,7 @@ fn update_spectrum(app: &mut AppState) {
 // ----------------- UI -----------------
 fn draw_ui(
     app: &AppState,
+    stations: &[Station],
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
 ) -> Result<(), std::io::Error> {
     terminal.draw(|f| {
@@ -167,7 +142,7 @@ fn draw_ui(
 
         // Title
         let title_text = match app.current_station {
-            Some(idx) => format!("{} - Townie Radio", STATIONS[idx].name),
+            Some(idx) => format!("{} - Townie Radio", stations[idx].name),
             None => "Townie Radio".to_string(),
         };
         let title = Paragraph::new(title_text)
@@ -199,7 +174,7 @@ fn draw_ui(
 
         // Stations list
         let mut station_lines = vec![];
-        for (i, s) in STATIONS.iter().enumerate() {
+        for (i, s) in stations.iter().enumerate() {
             if Some(i) == app.current_station {
                 station_lines.push(format!("> [{}] {}", i + 1, s.name));
             } else {
@@ -214,7 +189,7 @@ fn draw_ui(
 
         // Station logo — half-block rendering (▀): each char row = 2 pixel rows
         if let Some(idx) = app.current_station {
-            if let Ok(img) = image::open(STATIONS[idx].logo_path) {
+            if let Ok(img) = image::open(&stations[idx].logo_path) {
                 let logo_area = bottom_chunks[1];
                 let inner_w = logo_area.width.saturating_sub(2) as u32;
                 let inner_h = logo_area.height.saturating_sub(2) as u32;
@@ -260,6 +235,8 @@ fn draw_ui(
 
 // ----------------- Main -----------------
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let stations = load_stations();
+
     let mut stdout = std::io::stdout();
     enable_raw_mode()?;
     execute!(stdout, EnterAlternateScreen)?;
@@ -282,7 +259,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         {
             let a = app.lock().unwrap();
-            draw_ui(&a, &mut terminal)?;
+            draw_ui(&a, &stations, &mut terminal)?;
         }
 
         if poll(Duration::from_millis(50))? {
@@ -305,10 +282,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 break;
                             }
                             let idx = (digit - 1) as usize;
-                            if idx < STATIONS.len() {
+                            if idx < stations.len() {
                                 stop(&mut a);
                                 a.current_station = Some(idx);
-                                play(&mut a);
+                                play(&mut a, &stations);
                             }
                         }
                     }
