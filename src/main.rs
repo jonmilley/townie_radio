@@ -1,3 +1,4 @@
+use rust_embed::RustEmbed;
 use serde::Deserialize;
 use crossterm::{
     event::{poll, read, Event, KeyCode},
@@ -21,6 +22,13 @@ use std::{
 use rand::{thread_rng, Rng};
 use image::GenericImageView;
 
+// ----------------- Embedded Assets -----------------
+#[derive(RustEmbed)]
+#[folder = "logos/"]
+struct Logos;
+
+const STATIONS_JSON: &str = include_str!("../stations.json");
+
 // ----------------- Stations -----------------
 #[derive(Deserialize)]
 struct Station {
@@ -30,8 +38,7 @@ struct Station {
 }
 
 fn load_stations() -> Vec<Station> {
-    let data = std::fs::read_to_string("stations.json").expect("could not read stations.json");
-    serde_json::from_str(&data).expect("invalid stations.json")
+    serde_json::from_str(STATIONS_JSON).expect("invalid stations.json")
 }
 
 // ----------------- App State -----------------
@@ -189,7 +196,15 @@ fn draw_ui(
 
         // Station logo — half-block rendering (▀): each char row = 2 pixel rows
         if let Some(idx) = app.current_station {
-            if let Ok(img) = image::open(&stations[idx].logo_path) {
+            let logo_filename = std::path::Path::new(&stations[idx].logo_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            let embedded = Logos::get(logo_filename);
+            let img_result = embedded
+                .as_ref()
+                .and_then(|f| image::load_from_memory(&f.data).ok());
+            if let Some(img) = img_result {
                 let logo_area = bottom_chunks[1];
                 let inner_w = logo_area.width.saturating_sub(2) as u32;
                 let inner_h = logo_area.height.saturating_sub(2) as u32;
